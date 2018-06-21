@@ -353,8 +353,12 @@ uint32_t Adafruit_PN532::getFirmwareVersion(void) {
 
   pn532_packetbuffer[0] = PN532_COMMAND_GETFIRMWAREVERSION;
 
-  if (! sendCommandCheckAck(pn532_packetbuffer, 1)) {
+  if (! sendCommandCheckAck(pn532_packetbuffer, 10)) {
     return 0;
+  }
+
+  if (!waitready(10)) { //Need to wait before you read the data
+    return false;
   }
 
   // read data packet
@@ -362,9 +366,9 @@ uint32_t Adafruit_PN532::getFirmwareVersion(void) {
 
   // check that beginning of the response match to expected pattern
   if (0 != memcmp((char *)pn532_packetbuffer, (char *)pn532response_firmwarevers, sizeof(pn532response_firmwarevers))) {
-#ifdef PN532DEBUG
+//#ifdef PN532DEBUG
       PN532DEBUGPRINT.println(F("Firmware doesn't match!"));
-#endif
+//#endif
     return 0;
   }
 
@@ -419,8 +423,12 @@ bool Adafruit_PN532::sendCommandCheckAck(uint8_t *cmd, uint8_t cmdlen, uint16_t 
     return false;
   }
 
-  if (!waitready(timeout)) {
-    return false;
+  // For SPI only wait for the chip to be ready again.
+  // This is unnecessary with I2C.
+  if (_usingSPI) {
+    if (!waitready(timeout)) {
+      return false;
+    }
   }
 
   return true; // ack'd command
@@ -554,6 +562,10 @@ bool Adafruit_PN532::SAMConfig(void) {
   if (! sendCommandCheckAck(pn532_packetbuffer, 4))
     return false;
 
+  if (!waitready(10)) { //Need to wait until you read the data
+    return false;
+  }
+
   // read data packet
   readdata(pn532_packetbuffer, 9);
 
@@ -604,17 +616,8 @@ bool Adafruit_PN532::setPassiveActivationRetries(uint8_t maxRetries) {
 */
 /**************************************************************************/
 bool Adafruit_PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid, uint8_t * uidLength, uint16_t timeout) {
-  pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
-  pn532_packetbuffer[1] = 1;  // max 1 cards at once (we can set this to 2 later)
-  pn532_packetbuffer[2] = cardbaudrate;
-
-  if (!sendCommandCheckAck(pn532_packetbuffer, 3, timeout))
-  {
-    #ifdef PN532DEBUG
-      PN532DEBUGPRINT.println(F("No card(s) read"));
-    #endif
-    return 0x0;  // no cards read
-  }
+  if(!listenForPassiveTarget(cardbaudrate))
+    return 0x0;
 
   // wait for a card to enter the field (only possible with I2C)
   if (!_usingSPI) {
@@ -629,6 +632,46 @@ bool Adafruit_PN532::readPassiveTargetID(uint8_t cardbaudrate, uint8_t * uid, ui
     }
   }
 
+  return getPassiveTargetID(uid, uidLength);
+}
+
+/**************************************************************************/
+/*!
+    Begins listening for a ISO14443A target to enter the field
+
+    @param  cardBaudRate  Baud rate of the card
+
+    @returns 1 if everything executed properly, 0 for an error
+*/
+/**************************************************************************/
+bool Adafruit_PN532::listenForPassiveTarget(uint8_t cardbaudrate) {
+  pn532_packetbuffer[0] = PN532_COMMAND_INLISTPASSIVETARGET;
+  pn532_packetbuffer[1] = 1;
+  pn532_packetbuffer[2] = cardbaudrate;
+
+  if (!sendCommandCheckAck(pn532_packetbuffer, 3, 10000))
+  {
+    #ifdef PN532DEBUG
+      PN532DEBUGPRINT.println(F("No card(s) read"));
+    #endif
+    return 0x0;  // no cards read
+  }
+  return 1;
+}
+
+/**************************************************************************/
+/*!
+    After a ISO14443A target has entered the field, get the UID and its length
+
+    @param  uid           Pointer to the array that will be populated
+                          with the card's UID (up to 7 bytes)
+    @param  uidLength     Pointer to the variable that will hold the
+                          length of the card's UID.
+
+    @returns 1 if everything executed properly, 0 for an error
+*/
+/**************************************************************************/
+bool Adafruit_PN532::getPassiveTargetID(uint8_t * uid, uint8_t * uidLength) {
   // read data packet
   readdata(pn532_packetbuffer, 22);
   // check some basic stuff
