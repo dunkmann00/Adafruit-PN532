@@ -65,8 +65,6 @@
 byte pn532ack[] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
 byte pn532response_firmwarevers[] = {0x00, 0x00, 0xFF, 0x06, 0xFA, 0xD5, 0x03};
 
-#define USING_SPI 0
-
 // Uncomment these lines to enable debug output for PN532(SPI) and/or MIFARE related code
 // #define PN532DEBUG
 // #define MIFAREDEBUG
@@ -1778,7 +1776,6 @@ void Adafruit_PN532::writecommand(uint8_t* cmd, uint8_t cmdlen) {
       PN532DEBUGPRINT.print(F(" 0x")); PN532DEBUGPRINT.print(PN532_POSTAMBLE, HEX);
       PN532DEBUGPRINT.println();
     #endif
-  }
   #else
     // I2C command write.
     uint8_t checksum;

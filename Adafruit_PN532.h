@@ -36,6 +36,8 @@
  #include "WProgram.h"
 #endif
 
+#define USING_SPI 0
+
 #define PN532_PREAMBLE                      (0x00)
 #define PN532_STARTCODE1                    (0x00)
 #define PN532_STARTCODE2                    (0xFF)
